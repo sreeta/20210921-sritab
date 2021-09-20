@@ -13,7 +13,7 @@
 			 "Properties" : {
 				 "AccessControl" : "Private",
 				  "BucketName" : { "Ref" : "S3BucketName" }
-				  "LifecycleConfiguration" :  {
+				  "LifecycleConfiguration" : {
 						"Rules": [
 							{
 								"Id": "My-GlacierRule",
