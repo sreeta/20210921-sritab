@@ -1,0 +1,4 @@
+Improvements for efficiencya and security:
+1. S3 bucket should be private to ensure data privacy
+2. Policies and roles should be specific to the required actions and resources to avoid unwanted priviledges
+3. Lambda Runtime should be updated to supported version as required

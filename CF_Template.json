@@ -1,0 +1,157 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+    "Parameters": {
+        "S3BucketName": {
+            "Description": "S3 bucket name",
+            "Type": "String",
+            "Default": "my-bucket"
+        },
+    },
+	"Resources" : {
+		"My-S3Bucket" : {
+			"Type" : "AWS::S3::Bucket",
+			 "Properties" : {
+				 "AccessControl" : "Private",
+				  "BucketName" : { "Ref" : "S3BucketName" }
+				  "LifecycleConfiguration" :  {
+						"Rules": [
+							{
+								"Id": "My-GlacierRule",
+								"Prefix": "glacier",
+								"Status": "Enabled",
+								"ExpirationInDays": 180,
+								"Transitions": [
+									{
+										"TransitionInDays": 1,
+										"StorageClass": "GLACIER"
+									}
+								]
+							}
+						]
+					},
+				  "VersioningConfiguration" : {
+						"Status": "Enabled"
+					}
+			}
+		},
+		"My-SQS": {
+			"Type": "AWS::SQS::Queue",
+			"Properties": {
+				 "QueueName" : "my-sqs"
+			}
+		},
+		"My-SNSTopic": {
+			"Type": "AWS::SNS::Topic",
+			"Properties": {
+				"Subscription": [
+					{
+						"Endpoint": "abc@xyz.com",
+						 "Protocol": "email"
+					}
+				],
+				"TopicName": "my-topic"
+			}
+		},
+		"My-SqsPolicy": {
+			"Type": "AWS::SQS::QueuePolicy",
+			"Properties": {
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Id": "My-QueuePolicy",
+					"Statement": [
+						{
+							"Sid": "Allow-SNS-SendMessage",
+							"Effect": "Allow",
+							"Principal": "*",
+							"Action": [
+								"sqs:SendMessage"
+							],
+							"Resource": {
+								"Fn::GetAtt": [
+									"My-SQS",
+									"Arn"
+								]
+							},
+							"Condition": {
+								"ArnEquals": {
+									"aws:SourceArn": { "Ref": "My-SNSTopic" }
+								}
+							}
+						}
+					]
+				},
+				"Queues" : [
+					{
+					  "Ref" : "My-SQS"
+					}
+				]
+			}
+		},
+		"My-IAM": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": [
+									"lambda.amazonaws.com"
+								]
+							},
+							"Action": [
+								"sts:AssumeRole"
+							]
+						}
+					]
+				},
+				"Path": "/",
+				"Policies": [
+					{
+						"PolicyName": "sqs-lambda-s3-role-policy",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": [
+										"sqs:*",
+										"s3:*",
+										"lambda:*",
+										"sns:*",
+										"logs:*"
+									],
+									"Resource": "*"
+								}
+							]
+						}
+					}
+				],
+				"RoleName": "my-sqs-lambda-s3-role"
+			}
+		},
+		"My-LambdaFunction" : {
+			"Type": "AWS::Lambda::Function",
+			"Properties": {
+				"Handler": "lambda_function.lambda_handler",
+				"Role": { "Fn::GetAtt" : ["My-IAM", "Arn"] },
+				"Code": {
+				  "S3Bucket" : { "Ref" : "My-S3Bucket" },
+				  "S3ObjectVersion" : "abcdef"
+				},
+				"Runtime": "python3.6",
+				"FunctionName" : "my-lambdafunction"
+			}
+		},
+		"My-LambdaEvent" : {
+			"Type": "AWS::Lambda::EventSourceMapping",
+			"Properties": {
+				"BatchSize": "1",
+				"EventSourceArn": { "Fn::GetAtt" : ["My-SQS", "Arn"] },
+				"FunctionName": { "Fn::GetAtt" : ["My-LambdaFunction", "Arn"] },
+				"Enabled" : "true"
+			}
+		}
+	}
+}
